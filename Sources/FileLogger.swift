@@ -5,38 +5,53 @@
 //  Created by 李招雄 on 2023/12/28.
 //
 
-import Foundation
+import UIKit
+import Combine
 
+@available(iOS 13.0, *)
 public class FileLogger {
     
     public static let shared = FileLogger()
     public var maxSize = 20 * 1024 * 1024
+    
+    @Published public var fileNames = [String]()
+    public let fileContentSubject = CurrentValueSubject<String, Never>("")
+
     var fileHandle: FileHandle?
     var fileName: String?
     
-    init() {
-        let url = logsUrl()
-        if !FileManager.default.fileExists(atPath: url.path) {
-            try? FileManager.default.createDirectory(atPath: url.path, withIntermediateDirectories: true)
-        }
-    }
-    
-    func logsUrl() -> URL {
+    public var logsUrl: URL = {
         let paths = NSSearchPathForDirectoriesInDomains(.cachesDirectory, .userDomainMask, true)
         var url = URL(fileURLWithPath: paths[0])
         let bid = Bundle.main.bundleIdentifier
         url.appendPathComponent(bid!+"/Logs")
         return url
+    }()
+    
+    init() {
+        if !FileManager.default.fileExists(atPath: logsUrl.path) {
+            try? FileManager.default.createDirectory(atPath: logsUrl.path, withIntermediateDirectories: true)
+        }
+        refreshFiles()
+    }
+    
+    func refreshFiles() {
+        if let names = try? FileManager.default.contentsOfDirectory(atPath: logsUrl.path) {
+            DispatchQueue.main.async {
+                self.fileNames = names.sorted(by: >)
+            }
+        }
     }
     
     func log(_ log: Log) {
         guard let data = log.msg.data(using: .utf8) else { return }
         let components = Calendar.current.dateComponents([.year, .month, .day], from: log.date)
         let name = String(format: "%d-%02d-%02d.log", components.year!, components.month!, components.day!)
-        var url = logsUrl()
+        var url = logsUrl
         url.appendPathComponent(name)
         if !FileManager.default.fileExists(atPath: url.path) {
             FileManager.default.createFile(atPath: url.path, contents: nil)
+            refreshFiles()
         }
         do {
             if fileName == nil {
@@ -52,13 +67,15 @@ public class FileLogger {
                 fileHandle?.write(data)
             }
             fileName = name
+            DispatchQueue.main.async {
+                self.fileContentSubject.send(name)
+            }
         } catch {
             print(error)
         }
     }
     
     func tryDeleteFile() {
-        let logsUrl = logsUrl()
         do {
             var size = 0
             let names = try FileManager.default.contentsOfDirectory(atPath: logsUrl.path)
@@ -72,6 +89,9 @@ public class FileLogger {
                 if size > maxSize {
                     try? FileManager.default.removeItem(at: url)
                 }
+            }
+            if size > maxSize {
+                refreshFiles()
             }
         } catch {
             print(error)

@@ -9,6 +9,7 @@ public protocol LoggerProtocol: NSObjectProtocol {
     func format(log: Log) -> String
 }
 
+@available(iOS 13.0, *)
 public class SailLogger {
     
     public static let shared = SailLogger()
@@ -24,8 +25,9 @@ public class SailLogger {
         timeFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS z"
     }
     
-    public static func log(msg: String, level: Level) {
-        shared.log(msg: msg, level: level)
+    public static func log(msg: String, level: Level,
+                           file: String = #file, line: Int = #line) {
+        shared.log(msg: msg, level: level, file: file, line: line)
     }
     
     public func log(msg: String, level: Level,
@@ -41,13 +43,13 @@ public class SailLogger {
             let timeStr = timeFormatter.string(from: log.date)
             log.msg = "[\(log.file):\(log.line)] \(timeStr)\n\(log.msg)"
         }
-        if !log.msg.hasSuffix("\n") {
-            log.msg.append("\n")
-        }
         if output.contains(.console) {
             print(log.msg)
         } 
         if output.contains(.file) {
+            if !log.msg.hasSuffix("\n") {
+                log.msg.append("\n")
+            }
             queue.async {
                 FileLogger.shared.log(log)
             }
