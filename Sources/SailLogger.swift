@@ -41,7 +41,7 @@ public class SailLogger {
             log.msg = delegate.format(log: log)
         } else {
             let timeStr = timeFormatter.string(from: log.date)
-            log.msg = "[\(log.file):\(log.line)] \(timeStr)\n\(log.msg)"
+            log.msg = "[SailLogger][\(log.level.name)] \(timeStr) \n[\(log.file):\(log.line)] \(log.msg)"
         }
         if output.contains(.console) {
             print(log.msg)
