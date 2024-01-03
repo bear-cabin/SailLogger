@@ -14,8 +14,8 @@ public class FileLogger {
     public static let shared = FileLogger()
     public var maxSize = 20 * 1024 * 1024
     
-    @Published public var fileNames = [String]()
     public let fileContentSubject = CurrentValueSubject<String, Never>("")
+    public let fileNamesSubject = PassthroughSubject<(), Never>()
 
     var fileHandle: FileHandle?
     var fileName: String?
@@ -32,15 +32,6 @@ public class FileLogger {
         if !FileManager.default.fileExists(atPath: logsUrl.path) {
             try? FileManager.default.createDirectory(atPath: logsUrl.path, withIntermediateDirectories: true)
         }
-        refreshFiles()
-    }
-    
-    func refreshFiles() {
-        if let names = try? FileManager.default.contentsOfDirectory(atPath: logsUrl.path) {
-            DispatchQueue.main.async {
-                self.fileNames = names.sorted(by: >)
-            }
-        }
     }
     
     func log(_ log: Log) {
@@ -51,7 +42,9 @@ public class FileLogger {
         url.appendPathComponent(name)
         if !FileManager.default.fileExists(atPath: url.path) {
             FileManager.default.createFile(atPath: url.path, contents: nil)
-            refreshFiles()
+            DispatchQueue.main.async {
+                self.fileNamesSubject.send()
+            }
         }
         do {
             if fileName == nil {
@@ -91,7 +84,9 @@ public class FileLogger {
                 }
             }
             if size > maxSize {
-                refreshFiles()
+                DispatchQueue.main.async {
+                    self.fileNamesSubject.send()
+                }
             }
         } catch {
             print(error)
